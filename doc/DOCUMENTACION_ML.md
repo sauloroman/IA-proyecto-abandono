@@ -103,14 +103,14 @@ backend/
 
 ---
 
-### 3.4 `backend/ml/explainer.py` (NUEVO)
+### 3.4 `backend/ml/explainer.py`
 **Propósito:** Implementar la capa de **Inteligencia Artificial Explicable (XAI)** y **Analítica Prescriptiva**, desglosando los factores detonantes de riesgo y generando simulaciones contrafactuales de rescate académico.
 
 #### Componentes de `AcademicAdvisor`:
 1. **`analyze_risk_factors(...)`:**
    Evalúa cada variable individual contra umbrales institucionales pedagógicos y clasifica su severidad en 4 niveles (*Crítico*, *Alerta*, *Moderado*, *Excelente*), asignando un peso ponderado relativo de impacto.
 2. **`generate_rescue_plan(...)` (Simulación Contrafactual):**
-   Calcula metas de recuperación alcanzables (ej. asistencia mínima del 85%, regularización de materias) y ejecuta una **segunda inferencia en tiempo real** con `DropoutPredictor.predict` para proyectar el nuevo riesgo y probabilidad si el alumno cumple los compromisos.
+   Calcula metas de recuperación alcanzables (ej. asistencia mínima del 85%, regularización de materias) y ejecuta una **segunda inferencia en tiempo real** con `DropoutPredictor.predict` para proyectar el nuevo riesgo y el porcentaje exacto de probabilidad reducida si el alumno cumple los compromisos.
 
 ---
 
@@ -126,80 +126,266 @@ backend/
 
 ---
 
-## 5. Diagramas del Sistema y Flujo de Datos
+## 5. Diagramas del Sistema y Flujo de Procesos
 
-### 5.1 Flujo General del Pipeline de Machine Learning
-El siguiente diagrama ilustra el ciclo de vida completo de los datos, desde su generación probabilística hasta la inferencia en producción:
-
-```mermaid
-flowchart TD
-    subgraph Fase_1["1. Generación y Preparación"]
-        A["data_generator.py"] -->|"Semilla fija + Correlación"| B["dataset_estudiantes.csv (300 registros)"]
-    end
-
-    subgraph Fase_2["2. Experimentación y Entrenamiento"]
-        B --> C["train_model.py"]
-        C -->|"Stratified Split 80/20"| D1["Train Set (240)"]
-        C -->|"Stratified Split 80/20"| D2["Test Set (60)"]
-        D1 --> E1["Pipeline Árbol de Decisión"]
-        D1 --> E2["Pipeline Regresión Logística"]
-        E1 & E2 --> F["Evaluación de Métricas: Acc, Prec, Rec, F1"]
-        D2 -.->|"Validación ciega"| F
-        F --> G{"Comparación de F1-Score"}
-        G -->|"Modelo Ganador"| H["best_model.joblib (Pipeline Serializado)"]
-    end
-
-    subgraph Fase_3["3. Inferencia en Producción"]
-        H -->|"Carga Singleton en RAM"| I["predictor.py (DropoutPredictor)"]
-        J["Petición HTTP POST /api/predictor/predict"] --> I
-        I -->|"Clase: Alto/Bajo + Probabilidad"| K["Respuesta JSON al Tutor"]
-        I -->|"Persistencia de Inferencia"| L[("PostgreSQL: Tabla predictions")]
-    end
-```
+A continuación se detallan los diagramas de secuencia y flujo que explican **en qué momento exacto sucede cada operación** y cómo interactúan los módulos:
 
 ---
 
-### 5.2 Diagrama de Secuencia: Inferencia en Tiempo Real con XAI
-Representa la interacción de componentes cuando un tutor solicita evaluar el riesgo de un alumno a través de la API REST:
+### 5.1 Diagrama de Secuencia: Entrenamiento y Selección de Modelos (`train_model.py`)
+Muestra el ciclo de vida del aprendizaje supervisado: desde la generación estocástica de datos hasta la comparación métrica y serialización:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Tutor as Tutor Académico (Cliente / Frontend)
-    participant API as Flask App (Routes / Controladores)
-    participant Service as DropoutPredictor (ml/predictor.py)
-    participant XAI as AcademicAdvisor (ml/explainer.py)
-    participant Model as Pipeline scikit-learn (best_model.joblib)
-    participant DB as PostgreSQL (Docker Container)
+    actor Dev as Desarrollador / Sistema
+    participant Gen as data_generator.py
+    participant CSV as dataset_estudiantes.csv
+    participant Train as train_model.py
+    participant Split as sklearn train_test_split
+    participant PipeDT as Pipeline DecisionTree
+    participant PipeLR as Pipeline LogisticRegression
+    participant Metrics as Evaluador (Acc, Prec, Rec, F1)
+    participant Disk as data/best_model.joblib
 
-    Tutor->>API: POST /api/predictor/predict (student_id, asistencia, promedio, reprobadas, antecedentes)
-    activate API
-    API->>API: PredictorValidator.validate_prediction_input(data)
-    
-    API->>Service: predict(asistencia, promedio, reprobadas, antecedentes)
-    activate Service
-    Service->>Model: pipeline.predict() & predict_proba()
-    Model-->>Service: Clase (1 o 0) y Probabilidades
-    Service-->>API: { riesgo: "Alto", probabilidad: 0.928, modelo_usado }
-    deactivate Service
+    Dev->>Train: python -m ml.train_model
+    activate Train
 
-    API->>XAI: analyze_risk_factors() & generate_rescue_plan()
-    activate XAI
-    XAI->>Service: predict(asistencia_meta, reprobadas_meta=0) [Simulación Contrafactual]
-    Service-->>XAI: { nuevo_riesgo: "Bajo", nueva_probabilidad: 0.12 }
-    XAI-->>API: Factores Detonantes + Plan de Rescate + Metas
-    deactivate XAI
+    alt Si el CSV no existe
+        Train->>Gen: generate_student_dataset()
+        Gen->>Gen: Aplica fórmula risk_score + ruido gaussiano
+        Gen->>CSV: Guarda 300 registros con 70/30 de proporción
+        CSV-->>Train: DataFrame listo
+    else Si el CSV ya existe
+        Train->>CSV: pd.read_csv('dataset_estudiantes.csv')
+        CSV-->>Train: Retorna 300 registros
+    end
 
-    API->>DB: INSERT INTO predictions (student_id, ..., riesgo, probabilidad, fecha)
-    DB-->>API: Confirmación de persistencia
+    Train->>Split: train_test_split(X, y, test_size=0.20, stratify=y)
+    Split-->>Train: X_train (240), X_test (60), y_train (240), y_test (60)
 
-    API-->>Tutor: HTTP 201 Created (JSON Enriquecido con XAI y Plan)
-    deactivate API
+    Note over Train,PipeDT: 1. Entrenamiento Árbol de Decisión
+    Train->>PipeDT: fit(X_train, y_train)
+    PipeDT->>PipeDT: StandardScaler normaliza + Entrena Árbol (max_depth=4)
+    PipeDT-->>Train: Modelo entrenado
+
+    Note over Train,PipeLR: 2. Entrenamiento Regresión Logística
+    Train->>PipeLR: fit(X_train, y_train)
+    PipeLR->>PipeLR: StandardScaler normaliza + Ajusta pesos sigmoides
+    PipeLR-->>Train: Modelo entrenado
+
+    Note over Train,Metrics: 3. Evaluación ciega con X_test
+    Train->>PipeDT: predict(X_test)
+    PipeDT-->>Metrics: y_pred_DT
+    Metrics->>Metrics: Calcula Accuracy, Precision, Recall y F1_DT
+
+    Train->>PipeLR: predict(X_test)
+    PipeLR-->>Metrics: y_pred_LR
+    Metrics->>Metrics: Calcula Accuracy, Precision, Recall y F1_LR
+
+    Train->>Train: Compara F1-Score: max(F1_DT, F1_LR)
+    Train->>Disk: joblib.dump(best_pipeline, 'best_model.joblib')
+    Disk-->>Train: Archivo binario serializado con éxito
+
+    Train-->>Dev: Muestra tabla comparativa de métricas en consola
+    deactivate Train
 ```
 
 ---
 
-### 5.3 Diagrama Conceptual de Decisiones (Lógica del Árbol de Decisión)
+### 5.2 Diagrama de Secuencia: Inferencia Individual y Prescripción Tutorial (`POST /api/predictor/predict`)
+Muestra cómo una petición HTTP ejecuta la predicción real, genera la explicación de factores, realiza una **segunda inferencia contrafactual** para el plan de rescate y persiste todo en PostgreSQL:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Tutor as Tutor Académico (Cliente / Postman)
+    participant Route as routes/predictor_routes.py
+    participant Val as validators/predictor_validator.py
+    participant Ctrl as controllers/predictor_controller.py
+    participant DB as PostgreSQL (Docker)
+    participant Pred as ml/predictor.py (DropoutPredictor)
+    participant Model as Pipeline (best_model.joblib en RAM)
+    participant XAI as ml/explainer.py (AcademicAdvisor)
+
+    Tutor->>Route: POST /api/predictor/predict {student_id, asistencia, promedio, reprobadas, antecedentes}
+    activate Route
+    Route->>Ctrl: predict_risk()
+    activate Ctrl
+
+    Ctrl->>Val: validate_prediction_input(data)
+    alt Datos inválidos
+        Val-->>Ctrl: False, errores
+        Ctrl-->>Tutor: HTTP 400 Bad Request {status: error, errors: [...]}
+    end
+    Val-->>Ctrl: True, cleaned_data
+
+    Ctrl->>DB: Student.query.get(student_id)
+    alt Estudiante no existe
+        DB-->>Ctrl: None
+        Ctrl-->>Tutor: HTTP 404 Not Found {message: 'Estudiante no existe'}
+    end
+    DB-->>Ctrl: student (instancia encontrada)
+
+    Note over Ctrl,Model: PASO 1: Inferencia del Estado Actual
+    Ctrl->>Pred: predict(asistencia, promedio, reprobadas, antecedentes)
+    activate Pred
+    opt Primera Petición
+        Pred->>Model: Carga diferida joblib.load('best_model.joblib') a RAM
+    end
+    Pred->>Model: predict(df) & predict_proba(df)
+    Model-->>Pred: Clase (Alto/Bajo), Vector Probabilidades
+    Pred-->>Ctrl: { riesgo: "Alto", probabilidad: 0.9286, modelo_usado }
+    deactivate Pred
+
+    Note over Ctrl,XAI: PASO 2: Explicabilidad y Plan de Rescate
+    Ctrl->>XAI: analyze_risk_factors(asistencia, promedio, reprobadas, antecedentes)
+    XAI-->>Ctrl: factores_detonantes [{factor, nivel, impacto, diagnostico}]
+
+    Ctrl->>XAI: generate_rescue_plan(..., probabilidad_actual=0.9286)
+    activate XAI
+    Note over XAI,Pred: Simulación Contrafactual (Re-evaluación con metas)
+    XAI->>Pred: predict(asistencia_meta=85.0, promedio_meta=7.5, materias_meta=0)
+    Pred-->>XAI: { riesgo: "Bajo", probabilidad: 0.0845 }
+    XAI->>XAI: Calcula reduccion_esperada = -(92.86 - 8.45)% = -84.41%
+    XAI-->>Ctrl: plan_rescate { acciones, simulacion: { probabilidad_actual, nueva_probabilidad, reduccion } }
+    deactivate XAI
+
+    Note over Ctrl,DB: PASO 3: Persistencia en Base de Datos
+    Ctrl->>DB: Prediction(student_id, ..., riesgo, probabilidad, modelo)
+    Ctrl->>DB: db.session.commit()
+    DB-->>Ctrl: Registro persistido (ID generado)
+
+    Ctrl-->>Tutor: HTTP 201 Created { estudiante, diagnostico, factores, plan_rescate, aviso_etico }
+    deactivate Ctrl
+    deactivate Route
+```
+
+---
+
+### 5.3 Diagrama de Secuencia: Ingesta Masiva desde Excel/CSV (`POST /api/predictor/batch-upload`)
+Ilustra el procesamiento atómico de un archivo completo de un grupo escolar:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Profesor as Profesor / Tutor (Carga Masiva)
+    participant Route as routes/predictor_routes.py
+    participant Ctrl as controllers/predictor_controller.py
+    participant Pandas as Pandas & openpyxl
+    participant DB as PostgreSQL (Docker)
+    participant ML as DropoutPredictor & AcademicAdvisor
+
+    Profesor->>Route: POST /api/predictor/batch-upload (form-data: file)
+    activate Route
+    Route->>Ctrl: batch_predict()
+    activate Ctrl
+
+    Ctrl->>Ctrl: Valida presencia y extensión (.xlsx, .xls, .csv)
+    Ctrl->>Pandas: pd.read_excel(file) o pd.read_csv(file)
+    Pandas-->>Ctrl: DataFrame con N filas
+    Ctrl->>Ctrl: Normaliza encabezados a minúsculas y sin acentos
+    Ctrl->>Ctrl: Valida presencia de columnas requeridas
+
+    Note over Ctrl,DB: Bucle Transaccional por cada Alumno en el Archivo
+    loop Por cada fila (row) en el DataFrame
+        Ctrl->>DB: Student.query.filter_by(matricula=row.matricula).first()
+        alt Alumno nuevo
+            Ctrl->>DB: Student(nombre, matricula, carrera)
+            Ctrl->>DB: db.session.flush() (Obtiene student.id temporal)
+        end
+
+        Ctrl->>ML: DropoutPredictor.predict() [Inferencia]
+        ML-->>Ctrl: { riesgo, probabilidad, modelo }
+
+        Ctrl->>ML: AcademicAdvisor.analyze_risk_factors()
+        ML-->>Ctrl: factores_criticos
+
+        Ctrl->>ML: AcademicAdvisor.generate_rescue_plan(..., probabilidad_actual)
+        ML-->>Ctrl: plan { nueva_probabilidad, reduccion_esperada }
+
+        Ctrl->>DB: Prediction(student_id, ..., riesgo, probabilidad)
+        Ctrl->>Ctrl: Actualiza contadores grupales (Alto / Bajo)
+        Ctrl->>Ctrl: Agrega a lista 'detalles' y 'alumnos_prioritarios_atencion'
+    end
+
+    alt Todo el archivo procesado sin errores
+        Ctrl->>DB: db.session.commit() (Transacción Atómica Única)
+        Ctrl->>Ctrl: Calcula tasa_riesgo_grupal = (alto / total) * 100
+        Ctrl-->>Profesor: HTTP 201 Created { resumen_grupal, detalles }
+    else Error en lectura o tipo de datos
+        Ctrl->>DB: db.session.rollback() (Reversión completa)
+        Ctrl-->>Profesor: HTTP 500 Error con mensaje de rollback
+    end
+
+    deactivate Ctrl
+    deactivate Route
+```
+
+---
+
+### 5.4 Diagrama Integral de Componentes y Flujo de Datos
+Mapa general de la solución que muestra la relación entre capas, archivos y almacenamiento:
+
+```mermaid
+graph TD
+    Client["Cliente / Frontend / Postman"]
+
+    subgraph Backend_Flask["Backend Flask (Arquitectura en Capas)"]
+        subgraph Capa_Rutas["routes/"]
+            R1["student_routes.py"]
+            R2["predictor_routes.py"]
+        end
+
+        subgraph Capa_Validacion["validators/"]
+            V1["student_validator.py"]
+            V2["predictor_validator.py"]
+        end
+
+        subgraph Capa_Controladores["controllers/"]
+            C1["student_controller.py"]
+            C2["predictor_controller.py"]
+        end
+
+        subgraph Capa_ML["ml/ (Servicios de Inteligencia Artificial)"]
+            S1["data_generator.py"]
+            S2["train_model.py"]
+            S3["predictor.py (DropoutPredictor)"]
+            S4["explainer.py (AcademicAdvisor)"]
+        end
+
+        subgraph Capa_Modelos["models/ (ORM SQLAlchemy)"]
+            M1["Student (models/student.py)"]
+            M2["Prediction (models/prediction.py)"]
+        end
+    end
+
+    subgraph Almacenamiento["Persistencia"]
+        F1[("data/dataset_estudiantes.csv")]
+        F2[("data/best_model.joblib")]
+        DB[("PostgreSQL 15 (Docker Container)")]
+    end
+
+    Client -->|"HTTP Requests"| Capa_Rutas
+    R1 --> C1
+    R2 --> C2
+    C1 --> V1
+    C2 --> V2
+    C1 --> M1
+    C2 --> M1 & M2 & S3 & S4
+
+    S1 -->|"Genera"| F1
+    F1 -->|"Lee para entrenar"| S2
+    S2 -->|"Exporta mejor modelo"| F2
+    F2 -->|"Carga en RAM (Singleton)"| S3
+    S4 -->|"Simulación Contrafactual"| S3
+
+    M1 & M2 -->|"Mapeo Relacional 1:N"| DB
+```
+
+---
+
+### 5.5 Diagrama Conceptual de Decisiones (Lógica del Árbol de Decisión)
 Representación simplificada de cómo el algoritmo jerárquico segmenta el espacio muestral de los estudiantes:
 
 ```mermaid
@@ -283,6 +469,10 @@ A continuación se presentan tres casos representativos de prueba ejecutados por
   }
   ```
 * **Interpretación para el Tutor:** Probabilidad crítica del 92.86%. El sistema dispara una alerta inmediata para cita prioritaria de tutoría y plan de recuperación académica.
+* **Simulación del Plan de Rescate:**
+  - Si el alumno sube su asistencia al 85% y regulariza sus 3 materias reprobadas:
+  - **Nueva Probabilidad Proyectada:** `8.45%`
+  - **Reducción de Riesgo:** `-84.41%`
 
 ---
 
@@ -312,11 +502,11 @@ A continuación se presentan tres casos representativos de prueba ejecutados por
 
 ### 6.4 Matriz Comparativa de Casos
 
-| Estudiante | Asistencia | Promedio | Reprobadas | Antecedentes | Riesgo Predicho | Probabilidad Estimada | Acción Recomendada |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Estudiante A** | 94.0% | 8.70 | 0 | 0 | **Bajo** | 4.12% | Monitoreo ordinario |
-| **Estudiante B** | 51.5% | 6.10 | 3 | 1 | **Alto** | 92.86% | Intervención inmediata de rescate |
-| **Estudiante C** | 68.0% | 7.20 | 1 | 0 | **Bajo** (Frontera) | 44.10% | Seguimiento preventivo de asistencia |
+| Estudiante | Asistencia | Promedio | Reprobadas | Antecedentes | Riesgo Predicho | Probabilidad Estimada | Nueva Probabilidad con Plan | Reducción Proyectada |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Estudiante A** | 94.0% | 8.70 | 0 | 0 | **Bajo** | 4.12% | 4.12% | 0.0% |
+| **Estudiante B** | 51.5% | 6.10 | 3 | 1 | **Alto** | 92.86% | **8.45%** | **-84.41%** |
+| **Estudiante C** | 68.0% | 7.20 | 1 | 0 | **Bajo** (Frontera) | 44.10% | 12.30% | -31.80% |
 
 ---
 
@@ -376,7 +566,7 @@ A continuación se fundamentan las decisiones de ingeniería de software e intel
 * **Decisión:** Implementar el método `generate_rescue_plan(...)` en `AcademicAdvisor` que formula hipótesis de mejora alcanzables y las reevalúa contra el modelo en milisegundos.
 * **Justificación y Beneficio:**
   - Otorga valor operativo a la institución: transforma un reporte pasivo en una **guía de intervención tutorial activa**.
-  - Satisface el Requerimiento 8 del PDF al no condenar al estudiante y ofrecer un plan medible de recuperación.
+  - Satisface el Requerimiento 8 del PDF al no condenar al estudiante y ofrecer un plan medible con reducción explícita de probabilidad proyectada.
 
 ---
 
@@ -392,39 +582,6 @@ A continuación se fundamentan las decisiones de ingeniería de software e intel
 ## 8. Arquitectura en Capas de la API REST
 
 Para cumplir con el requerimiento de una **arquitectura modular profesional desacoplada**, el backend se organiza en 4 capas estrictas de responsabilidad única:
-
-```mermaid
-graph TD
-    subgraph Capa_Transporte["1. Capa de Rutas (routes/)"]
-        R1["student_routes.py (/api/students)"]
-        R2["predictor_routes.py (/api/predictor)"]
-    end
-
-    subgraph Capa_Validacion["2. Capa de Validación (validators/)"]
-        V1["student_validator.py"]
-        V2["predictor_validator.py"]
-    end
-
-    subgraph Capa_Logica["3. Capa de Controladores (controllers/)"]
-        C1["student_controller.py"]
-        C2["predictor_controller.py"]
-    end
-
-    subgraph Capa_Servicios_Datos["4. Modelos y Servicios de ML"]
-        M1["Student (models/student.py)"]
-        M2["Prediction (models/prediction.py)"]
-        S1["DropoutPredictor (ml/predictor.py)"]
-        S2["AcademicAdvisor (ml/explainer.py)"]
-        DB[("PostgreSQL 15 (Docker)")]
-    end
-
-    R1 --> C1
-    R2 --> C2
-    C1 --> V1
-    C2 --> V2
-    C1 --> M1 & DB
-    C2 --> M1 & M2 & S1 & S2 & DB
-```
 
 ### Catálogo Completo de Endpoints Funcionales
 
@@ -442,37 +599,12 @@ graph TD
 
 ## 9. Flujo del Procesamiento Masivo (Batch Processing)
 
-El siguiente diagrama detalla cómo opera el procesamiento en lote cuando un profesor carga un archivo con su lista de grupo:
-
-```mermaid
-flowchart TD
-    A["Profesor sube archivo Excel (.xlsx / .csv)"] --> B["POST /api/predictor/batch-upload"]
-    B --> C{"Validación de Formato"}
-    C -- "Inválido" --> E1["HTTP 400 Formato no soportado"]
-    C -- "Válido" --> D["Lectura con Pandas + openpyxl"]
-    D --> E["Normalización de Encabezados (lowercase, sin acentos)"]
-    E --> F{"¿Columnas requeridas presentes?"}
-    F -- "No" --> E2["HTTP 400 Faltan columnas requeridas"]
-    F -- "Sí" --> G["Bucle Iterativo por cada Alumno (row)"]
-
-    subgraph Procesamiento_Fila["Procesamiento por Fila"]
-        G --> H{"¿Existe Estudiante por matrícula?"}
-        H -- "No" --> I1["Crea instancia Student + db.session.flush()"]
-        H -- "Sí" --> I2["Asocia student_id existente"]
-        I1 & I2 --> J["DropoutPredictor.predict()"]
-        J --> K["AcademicAdvisor.analyze_risk_factors()"]
-        K --> L["AcademicAdvisor.generate_rescue_plan()"]
-        L --> M["Crea instancia Prediction asociada"]
-        M --> N["Agrega a contadores grupales (Alto / Bajo)"]
-    end
-
-    N --> O{"¿Más filas?"}
-    O -- "Sí" --> G
-    O -- "No" --> P["db.session.commit() (Transacción Atómica Única)"]
-    P --> Q["Calcula Tasa de Riesgo Grupal (%)"]
-    Q --> R["Filtra Lista de Alumnos Prioritarios en Riesgo Alto"]
-    R --> S["HTTP 201 Created con Reporte Grupal + Detalles Individuales"]
-```
+Cuando un profesor carga un archivo con su lista de grupo, el procesamiento ocurre de la siguiente manera:
+1. El archivo es subido vía `multipart/form-data`.
+2. Pandas y `openpyxl` interpretan el contenido y normalizan encabezados.
+3. Se itera fila por fila; cada alumno nuevo es registrado con `flush()` y evaluado en tiempo real.
+4. Se calcula la **tasa de riesgo grupal** y se genera la lista de **alumnos prioritarios**.
+5. Se ejecuta un único `commit()` atómico para garantizar consistencia.
 
 ---
 
@@ -513,13 +645,22 @@ Ejemplo del JSON retornado tras procesar un archivo con 25 estudiantes:
       },
       "diagnostico": {
         "riesgo": "Alto",
-        "probabilidad": 0.9412
+        "probabilidad": "94.12%"
       },
       "factores_criticos": [
         "Acumula 3 materias reprobadas, lo que genera alto rezago curricular.",
         "Asistencia del 50.0% muy por debajo del mínimo institucional reglamentario (80%)."
       ],
-      "plan_rescate": "Plan de rescate sugerido para recuperar la permanencia escolar:"
+      "plan_rescate": {
+        "requiere_intervencion": true,
+        "nueva_probabilidad_proyectada": "8.45%",
+        "reduccion_riesgo": "-85.67%",
+        "impacto": "Al aplicar este plan, la probabilidad de abandono disminuye del 94.1% al 8.5% (Reducción de 85.67 puntos porcentuales).",
+        "acciones": [
+          "Compromiso de asistencia: Aumentar del 50.0% al menos al 85% durante el siguiente mes.",
+          "Acreditar las 3 materia(s) pendientes en el próximo periodo de regularización/asesorías."
+        ]
+      }
     }
   ]
 }

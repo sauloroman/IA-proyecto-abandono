@@ -56,7 +56,8 @@ class PredictorController:
             asistencia=cleaned_data['asistencia'],
             promedio=cleaned_data['promedio'],
             materias_reprobadas=cleaned_data['materias_reprobadas'],
-            antecedentes=cleaned_data['antecedentes']
+            antecedentes=cleaned_data['antecedentes'],
+            probabilidad_actual=probabilidad
         )
 
         new_prediction = Prediction(
@@ -94,6 +95,7 @@ class PredictorController:
             'aviso_etico': 'Estimación probabilística asistencial. No debe emplearse como medida administrativa sobre el estudiante.'        
         }), 201
 
+    @staticmethod
     def batch_predict():
 
         if 'file' not in request.files:
@@ -179,7 +181,13 @@ class PredictorController:
                 
                 factores = AcademicAdvisor.analyze_risk_factors(asistencia, promedio, materias_reprobadas, antecedentes)
                 
-                plan = AcademicAdvisor.generate_rescue_plan(asistencia, promedio, materias_reprobadas, antecedentes)
+                plan = AcademicAdvisor.generate_rescue_plan(
+                    asistencia, 
+                    promedio, 
+                    materias_reprobadas, 
+                    antecedentes, 
+                    probabilidad_actual=probabilidad
+                )
                 
                 prediction = Prediction(
                     student_id=student.id,
@@ -205,12 +213,18 @@ class PredictorController:
                 else:
                     conteo_bajo += 1
                     
-                    resultados.append({
-                        'estudiante': {'id': student.id, 'nombre': nombre, 'matricula': matricula},
-                        'diagnostico': {'riesgo': riesgo, 'probabilidad': probabilidad},
-                        'factores_criticos': [f['diagnostico'] for f in factores if f['nivel'] in ['Crítico', 'Alerta']],
-                        'plan_rescate': plan['mensaje'] if plan.get('requiere_intervencion') else 'Permanencia saludable'
-                    })
+                resultados.append({
+                    'estudiante': {'id': student.id, 'nombre': nombre, 'matricula': matricula},
+                    'diagnostico': {'riesgo': riesgo, 'probabilidad': f"{round(probabilidad * 100, 2)}%"},
+                    'factores_criticos': [f['diagnostico'] for f in factores if f['nivel'] in ['Crítico', 'Alerta']],
+                    'plan_rescate': {
+                        'requiere_intervencion': plan['requiere_intervencion'],
+                        'nueva_probabilidad_proyectada': plan['simulacion_rescate']['nueva_probabilidad'],
+                        'reduccion_riesgo': plan['simulacion_rescate']['reduccion_esperada'],
+                        'impacto': plan['simulacion_rescate']['impacto_diagnostico'],
+                        'acciones': plan['acciones_recomendadas']
+                    }
+                })
 
             db.session.commit()
         except Exception as e:

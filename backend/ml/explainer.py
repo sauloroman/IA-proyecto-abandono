@@ -63,7 +63,7 @@ class AcademicAdvisor:
         return factores
 
     @classmethod
-    def generate_rescue_plan(cls, asistencia: float, promedio: float, materias_reprobadas: int, antecedentes: int):
+    def generate_rescue_plan(cls, asistencia: float, promedio: float, materias_reprobadas: int, antecedentes: int, probabilidad_actual: float = 0.0):
         acciones = []
 
         asistencia_meta = asistencia
@@ -89,8 +89,13 @@ class AcademicAdvisor:
             return {
                 'requiere_intervencion': False,
                 'mensaje': 'El alumno no requiere plan de rescate de emergencia. Continuar con tutoría ordinaria.',
-                'acciones': ['Monitoreo ordinario al cierre del cuatrimestre.'],
-                'probabilidad_proyectada': 0.05
+                'acciones_recomendadas': ['Monitoreo ordinario al cierre del cuatrimestre.'],
+                'simulacion_rescate': {
+                    'probabilidad_actual': f"{round(probabilidad_actual * 100, 2)}%",
+                    'nueva_probabilidad': f"{round(probabilidad_actual * 100, 2)}%",
+                    'reduccion_esperada': "0.0%",
+                    'impacto_diagnostico': 'El alumno se encuentra en permanencia saludable.'
+                }
             }
 
         simulacion = DropoutPredictor.predict(
@@ -100,14 +105,18 @@ class AcademicAdvisor:
             antecedentes=antecedentes
         )
 
+        nueva_probabilidad = simulacion['probabilidad']
+        reduccion = round((probabilidad_actual - nueva_probabilidad) * 100, 2)
+
         return {
             'requiere_intervencion': True,
             'mensaje': 'Plan de rescate sugerido para recuperar la permanencia escolar:',
             'acciones_recomendadas': acciones,
             'simulacion_rescate': {
-                'asistencia_proyectada': asistencia_meta,
-                'materias_meta': materias_meta,
+                'probabilidad_actual': f"{round(probabilidad_actual * 100, 2)}%",
+                'nueva_probabilidad': f"{round(nueva_probabilidad * 100, 2)}%",
                 'nuevo_riesgo_estimado': simulacion['riesgo'],
-                'nueva_probabilidad': simulacion['probabilidad']
+                'reduccion_esperada': f"-{abs(reduccion)}%",
+                'impacto_diagnostico': f"Al aplicar este plan, la probabilidad de abandono disminuye del {round(probabilidad_actual * 100, 1)}% al {round(nueva_probabilidad * 100, 1)}% (Reducción de {abs(reduccion)} puntos porcentuales)."
             }
         }
