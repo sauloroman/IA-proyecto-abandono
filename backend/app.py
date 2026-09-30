@@ -19,9 +19,9 @@ def create_app():
     @app.route('/api/health', methods=["GET"])
     def health_check():
         return jsonify({
-            'status': 'success',
-            'message': 'API de Predicción de Abandono Escolar en Funcionamiento',
-            'database': 'Conectada exitosamente'
+            'estado': 'exito',
+            'mensaje': 'API de Predicción de Abandono Escolar en Funcionamiento',
+            'base_datos': 'Conectada exitosamente'
         }), 200
 
     with app.app_context():

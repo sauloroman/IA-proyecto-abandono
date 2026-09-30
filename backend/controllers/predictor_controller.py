@@ -12,20 +12,20 @@ class PredictorController:
     def predict_risk():
         data = request.get_json() or {}
 
-        is_valid, errors, cleaned_data = PredictorValidator.validate_prediction_input(data)
+        is_valid, errores, cleaned_data = PredictorValidator.validate_prediction_input(data)
 
         if not is_valid:
             return jsonify({
-                'status': 'error',
-                'errors': errors
+                'estado': 'error',
+                'errores': errores
             }), 400
 
-        student = Student.query.get(cleaned_data['student_id'])
+        student = Student.query.get(cleaned_data['estudiante_id'])
 
         if not student:
             return jsonify({
-                'status': 'error',
-                'message': f"El estudiante con ID {cleaned_data['student_id']} no existe."
+                'estado': 'error',
+                'mensaje': f"El estudiante con ID {cleaned_data['estudiante_id']} no existe."
             }), 404
 
         try:
@@ -37,8 +37,8 @@ class PredictorController:
             )
         except Exception as e:
             return jsonify({
-                'status': 'error',
-                'message': f'Error en el motor de Machine Learning: {str(e)}'
+                'estado': 'error',
+                'mensaje': f'Error en el motor de Machine Learning: {str(e)}'
             }), 500
 
         riesgo = prediction_output['riesgo']
@@ -75,8 +75,8 @@ class PredictorController:
         db.session.commit()
 
         return jsonify({
-            'status': 'success',
-            'message': 'Predicción de riesgo completada y registrada en la base de datos',
+            'estado': 'exito',
+            'mensaje': 'Predicción de riesgo completada y registrada en la base de datos',
             'estudiante': {
                 'id': student.id,
                 'nombre': student.nombre,
@@ -97,51 +97,40 @@ class PredictorController:
 
     @staticmethod
     def batch_predict():
+        archivo = request.files.get('archivo') or request.files.get('file')
 
-        if 'file' not in request.files:
+        if not archivo or archivo.filename == '':
             return jsonify({
-                'status': 'error',
-                'message': 'No se adjuntó ningún archivo bajo la clave "file"'
+                'estado': 'error',
+                'mensaje': 'No se adjuntó ningún archivo bajo la clave "archivo" o "file"'
             }), 400
 
-        file = request.files['file']
-
-        if file.filename == '':
-            return jsonify({
-                'status': 'error',
-                'message': 'El archivo seleccionado está vacío'
-            }), 400
-
-        filename = file.filename.lower()
+        filename = archivo.filename.lower()
 
         try:
-            
             if filename.endswith('.csv'):
-                df = pd.read_csv(file)
+                df = pd.read_csv(archivo)
             elif filename.endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(file)
+                df = pd.read_excel(archivo)
             else:
                 return jsonify({
-                    'status': 'error', 
-                    'message': 'Formato no soportado. Debe ser un archivo .xlsx, .xls o .csv'
+                    'estado': 'error', 
+                    'mensaje': 'Formato no soportado. Debe ser un archivo .xlsx, .xls o .csv'
                 }), 400
-
         except Exception as e:
             return jsonify({
-                'status': 'error', 
-                'message': f'Error al leer el archivo: {str(e)}'
-                }), 400
+                'estado': 'error', 
+                'mensaje': f'Error al leer el archivo: {str(e)}'
+            }), 400
             
         df.columns = [str(c).strip().lower().replace(' ', '_').replace('í', 'i') for c in df.columns]
-
         required_cols = ['nombre', 'matricula', 'asistencia', 'promedio', 'materias_reprobadas', 'antecedentes']
-        
         missing_cols = [c for c in required_cols if c not in df.columns]
 
         if missing_cols:
             return jsonify({
-                'status': 'error',
-                'message': f'Faltan columnas requeridas en el archivo: {missing_cols}',
+                'estado': 'error',
+                'mensaje': f'Faltan columnas requeridas en el archivo: {missing_cols}',
                 'columnas_esperadas': required_cols
             }), 400
 
@@ -229,14 +218,14 @@ class PredictorController:
             db.session.commit()
         except Exception as e:
             db.session.rollback()
-            return jsonify({'status': 'error', 'message': f'Error durante el procesamiento del archivo: {str(e)}'}), 500
+            return jsonify({'estado': 'error', 'mensaje': f'Error durante el procesamiento del archivo: {str(e)}'}), 500
             
         total_procesados = len(resultados)
         tasa_riesgo = round((conteo_alto / total_procesados) * 100, 1) if total_procesados > 0 else 0
 
         return jsonify({
-            'status': 'success',
-            'message': f'Se procesaron exitosamente {total_procesados} estudiantes del archivo.',
+            'estado': 'exito',
+            'mensaje': f'Se procesaron exitosamente {total_procesados} estudiantes del archivo.',
             'resumen_grupal': {
                 'total_estudiantes': total_procesados,
                 'alumnos_riesgo_alto': conteo_alto,
@@ -246,4 +235,3 @@ class PredictorController:
             },
             'detalles': resultados
         }), 201
-        

@@ -44,7 +44,7 @@ class Prediction(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
-            "student_id": self.student_id,
+            "estudiante_id": self.student_id,
             "asistencia": self.asistencia,
             "promedio": self.promedio,
             "materias_reprobadas": self.materias_reprobadas,
