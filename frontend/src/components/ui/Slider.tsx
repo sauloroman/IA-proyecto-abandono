@@ -23,7 +23,7 @@ export const Slider: React.FC<SliderProps> = ({
         <div className={`space-y-2 ${className}`}>
             <div className="flex justify-between items-center text-xs">
                 <label className="text-zinc-300 font-medium">{label}</label>
-                <span className="font-mono text-zinc-200 font-semibold bg-zinc-800 px-2 py-0.5 rounded text-[11px] border border-zinc-700/50">
+                <span className="text-zinc-200 font-semibold bg-zinc-800 px-2 py-0.5 rounded text-xs border border-zinc-700/50">
                     {valorActual}
                 </span>
             </div>
@@ -33,13 +33,13 @@ export const Slider: React.FC<SliderProps> = ({
                 {...props}
             />
             {subetiquetas && (
-                <div className="flex justify-between text-[10px] text-zinc-400 font-mono">
+                <div className="flex justify-between text-xs text-zinc-400">
                     <span>{subetiquetas.izquierda}</span>
                     <span>{subetiquetas.centro}</span>
                     <span>{subetiquetas.derecha}</span>
                 </div>
             )}
-            {error && <span className="text-[11px] text-rose-400 block">{error}</span>}
+            {error && <span className="text-xs text-rose-400 block">{error}</span>}
         </div>
     );
 };

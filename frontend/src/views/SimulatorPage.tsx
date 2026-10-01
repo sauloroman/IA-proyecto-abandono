@@ -42,7 +42,7 @@ export const SimulatorPage: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="border-b border-zinc-800/80 pb-4">
-                <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 mb-1">
+                <div className="flex items-center gap-2 text-xs text-zinc-400 mb-1">
                     <SlidersHorizontal className="w-3.5 h-3.5 text-zinc-400" />
                     <span>Módulo de Inferencia & XAI</span>
                 </div>

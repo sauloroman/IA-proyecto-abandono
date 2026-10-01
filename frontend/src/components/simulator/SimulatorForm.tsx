@@ -38,11 +38,10 @@ export const SimulatorForm: React.FC<SimulatorFormProps> = ({
             onSubmit={onSubmit}
             className="bg-zinc-900/50 border border-zinc-800/90 rounded-xl p-5 space-y-5"
         >
-            <div className="flex items-center justify-between pb-3 border-b border-zinc-800/70">
-                <span className="text-xs font-medium text-zinc-300">
+            <div className="pb-3 border-b border-zinc-800/70">
+                <span className="text-xs font-bold text-zinc-300 uppercase">
                     Parámetros del Alumno
                 </span>
-                <span className="text-[10px] font-mono text-zinc-400">4 variables</span>
             </div>
 
             <div className="space-y-1.5">

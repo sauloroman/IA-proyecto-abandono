@@ -60,7 +60,7 @@ export const Navbar: React.FC = () => {
                                 : 'bg-zinc-500 animate-pulse'
                             }`}
                     />
-                    <span className="font-mono text-zinc-300 text-[11px]">
+                    <span className="text-zinc-300 text-xs">
                         {conectado === true
                             ? 'Servicio activo'
                             : conectado === false
