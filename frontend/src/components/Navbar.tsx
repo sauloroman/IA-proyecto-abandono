@@ -17,8 +17,8 @@ export const Navbar: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
 
                 <NavLink to="/" className="flex items-center gap-2.5 group">
-                    <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-200 group-hover:border-zinc-700 transition-colors">
-                        <GraduationCap className="w-4 h-4 text-zinc-300" />
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:border-blue-500/40 transition-colors">
+                        <GraduationCap className="w-4 h-4 text-blue-400" />
                     </div>
                     <div className="flex flex-col">
                         <div className="flex items-center gap-1.5 leading-none">

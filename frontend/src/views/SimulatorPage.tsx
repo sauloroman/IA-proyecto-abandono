@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useStudents } from '../hooks/useStudents';
 import { useSimulator } from '../hooks/useSimulator';
 import { useSimulatorForm } from '../hooks/useSimulatorForm';
@@ -9,9 +10,14 @@ import { SimulatorResults } from '../components/simulator/SimulatorResults';
 import { SlidersHorizontal, AlertCircle } from 'lucide-react';
 
 export const SimulatorPage: React.FC = () => {
+    const [searchParams] = useSearchParams();
+    const matriculaParam = searchParams.get('matricula');
+    const estudianteIdParam = searchParams.get('estudiante_id');
+    const paramProcesadoRef = useRef<string | null>(null);
+
     const {
         props: { estudiantes, cargando: cargandoEstudiantes },
-        methods: { seleccionarEstudiante },
+        methods: { seleccionarEstudiante, recargarEstudiantes, cargarEstudiantePorId },
     } = useStudents();
 
     const {
@@ -28,16 +34,86 @@ export const SimulatorPage: React.FC = () => {
         estudianteInicialId: estudiantes[0]?.id,
     });
 
+    useEffect(() => {
+        if (matriculaParam || estudianteIdParam) {
+            const encontrado = estudiantes.some(
+                (e) =>
+                    (matriculaParam && e.matricula.toLowerCase() === matriculaParam.toLowerCase()) ||
+                    (estudianteIdParam && e.id === Number(estudianteIdParam))
+            );
+            if (!encontrado && !cargandoEstudiantes) {
+                recargarEstudiantes();
+            }
+        }
+    }, [matriculaParam, estudianteIdParam, estudiantes, cargandoEstudiantes, recargarEstudiantes]);
+
+    const estudianteObjetivo = useMemo(() => {
+        if (estudiantes.length === 0) return null;
+        if (matriculaParam) {
+            return (
+                estudiantes.find(
+                    (e) => e.matricula.toLowerCase() === matriculaParam.toLowerCase()
+                ) || null
+            );
+        }
+        if (estudianteIdParam) {
+            return estudiantes.find((e) => e.id === Number(estudianteIdParam)) || null;
+        }
+        return null;
+    }, [estudiantes, matriculaParam, estudianteIdParam]);
+
+    useEffect(() => {
+        const claveActual = matriculaParam || estudianteIdParam;
+
+        if (claveActual && estudianteObjetivo) {
+            if (paramProcesadoRef.current === claveActual) return;
+            paramProcesadoRef.current = claveActual;
+
+            setValue('estudiante_id', estudianteObjetivo.id);
+            seleccionarEstudiante(estudianteObjetivo);
+
+            cargarEstudiantePorId(estudianteObjetivo.id).then((detallado) => {
+                if (detallado?.predicciones && detallado.predicciones.length > 0) {
+                    const ultimaPred = detallado.predicciones[detallado.predicciones.length - 1];
+                    const asist = Math.round(Number(ultimaPred.asistencia));
+                    const prom = Number(ultimaPred.promedio);
+                    const reprob = Number(ultimaPred.materias_reprobadas);
+                    const antec = Number(ultimaPred.antecedentes);
+
+                    setValue('asistencia', asist);
+                    setValue('promedio', prom);
+                    setValue('materias_reprobadas', reprob);
+                    setValue('antecedentes', antec);
+
+                    ejecutarPrediccion({
+                        estudiante_id: estudianteObjetivo.id,
+                        asistencia: asist,
+                        promedio: prom,
+                        materias_reprobadas: reprob,
+                        antecedentes: antec,
+                    });
+                }
+            });
+        } else if (!matriculaParam && !estudianteIdParam && estudiantes.length > 0 && !valores.estudiante_id) {
+            setValue('estudiante_id', estudiantes[0].id);
+            seleccionarEstudiante(estudiantes[0]);
+        }
+    }, [
+        estudianteObjetivo,
+        matriculaParam,
+        estudianteIdParam,
+        setValue,
+        seleccionarEstudiante,
+        cargarEstudiantePorId,
+        ejecutarPrediccion,
+        estudiantes,
+        valores.estudiante_id,
+    ]);
+
     const estudianteActual = useMemo(
         () => estudiantes.find((e) => e.id === Number(valores.estudiante_id)),
         [valores.estudiante_id, estudiantes]
     );
-
-    useEffect(() => {
-        if (estudiantes.length > 0 && !valores.estudiante_id) {
-            setValue('estudiante_id', estudiantes[0].id);
-        }
-    }, [estudiantes, setValue, valores.estudiante_id]);
 
     return (
         <div className="space-y-6">

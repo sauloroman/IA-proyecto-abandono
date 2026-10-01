@@ -49,9 +49,10 @@ export const SimulatorForm: React.FC<SimulatorFormProps> = ({
                     Estudiante a Evaluar
                 </label>
                 <select
+                    value={valores.estudiante_id || ''}
                     {...register('estudiante_id', { required: 'Seleccione un estudiante' })}
                     onChange={(e) => {
-                        register('estudiante_id').onChange(e);
+                        setValue('estudiante_id', Number(e.target.value));
                         const est = estudiantes.find((x) => x.id === Number(e.target.value)) || null;
                         onSeleccionarEstudiante(est);
                     }}

@@ -1,7 +1,13 @@
-import { useEffect } from "react"
+import { useEffect, useCallback } from "react"
 import { useAppDispatch, useAppSelector } from "../store/hooks"
-import { startLoadingStudents } from "../store/students/student.thunk"
-import type { Estudiante } from "../types"
+import {
+    startLoadingStudentById,
+    startLoadingStudents,
+    startCreatingStudent,
+    startUpdatingStudent,
+    startDeletingStudent,
+} from "../store/students/student.thunk"
+import type { Estudiante, CrearEstudiantePayload, ActualizarEstudiantePayload } from "../types"
 import { setEstudianteSeleccionado } from "../store/students/student.slice"
 
 export const useStudents = () => {
@@ -9,19 +15,35 @@ export const useStudents = () => {
     const dispatch = useAppDispatch()
     const { estudiantes, estudianteSeleccionado, cargando, error } = useAppSelector(state => state.students)
 
-    const seleccionarEstudiante = (estudiante: Estudiante | null) => {
+    const seleccionarEstudiante = useCallback((estudiante: Estudiante | null) => {
         dispatch(setEstudianteSeleccionado(estudiante))
-    }
+    }, [dispatch])
 
-    const recargarEstudiantes = () => {
+    const recargarEstudiantes = useCallback(() => {
         dispatch(startLoadingStudents())
-    }
+    }, [dispatch])
+
+    const cargarEstudiantePorId = useCallback(async (id: number) => {
+        return await dispatch(startLoadingStudentById(id))
+    }, [dispatch])
+
+    const crearEstudiante = useCallback(async (payload: CrearEstudiantePayload) => {
+        return await dispatch(startCreatingStudent(payload))
+    }, [dispatch])
+
+    const actualizarEstudiante = useCallback(async (id: number, payload: ActualizarEstudiantePayload) => {
+        return await dispatch(startUpdatingStudent(id, payload))
+    }, [dispatch])
+
+    const eliminarEstudiante = useCallback(async (id: number) => {
+        return await dispatch(startDeletingStudent(id))
+    }, [dispatch])
 
     useEffect(() => {
         if (estudiantes.length === 0) {
             dispatch(startLoadingStudents())
         }
-    })
+    }, [dispatch, estudiantes.length])
 
     return {
         props: {
@@ -34,6 +56,11 @@ export const useStudents = () => {
         methods: {
             seleccionarEstudiante,
             recargarEstudiantes,
+            cargarEstudiantePorId,
+            crearEstudiante,
+            actualizarEstudiante,
+            eliminarEstudiante,
         }
     }
 }
+

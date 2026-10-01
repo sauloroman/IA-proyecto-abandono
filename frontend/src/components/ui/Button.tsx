@@ -25,7 +25,7 @@ export const Button: React.FC<ButtonProps> = ({
     ...props
 }) => {
     const variantStyles: Record<ButtonVariant, string> = {
-        primary: 'bg-zinc-100 text-zinc-950 hover:bg-white border-transparent shadow-xs',
+        primary: 'bg-blue-600 text-white hover:bg-blue-500 border-blue-500/40 shadow-xs shadow-blue-950/40',
         secondary: 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700/80 border-zinc-700/60 shadow-xs',
         outline: 'bg-transparent text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 border-zinc-800',
         ghost: 'bg-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border-transparent',

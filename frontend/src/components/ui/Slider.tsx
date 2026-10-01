@@ -23,13 +23,13 @@ export const Slider: React.FC<SliderProps> = ({
         <div className={`space-y-2 ${className}`}>
             <div className="flex justify-between items-center text-xs">
                 <label className="text-zinc-300 font-medium">{label}</label>
-                <span className="text-zinc-200 font-semibold bg-zinc-800 px-2 py-0.5 rounded text-xs border border-zinc-700/50">
+                <span className="text-blue-400 font-semibold bg-blue-500/10 px-2 py-0.5 rounded text-xs border border-blue-500/20">
                     {valorActual}
                 </span>
             </div>
             <input
                 type="range"
-                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-zinc-200 focus:outline-none"
+                className="w-full h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none"
                 {...props}
             />
             {subetiquetas && (

@@ -34,6 +34,31 @@ export const studentsSlice = createSlice({
             state.cargando = false;
             state.error = action.payload;
         },
+        agregarEstudiante: (state, action: PayloadAction<Estudiante>) => {
+            state.cargando = false;
+            state.estudiantes.unshift(action.payload);
+        },
+
+        actualizarEstudianteEnLista: (state, action: PayloadAction<Estudiante>) => {
+            state.cargando = false;
+            state.estudiantes = state.estudiantes.map((e) =>
+                e.id === action.payload.id ? action.payload : e
+            );
+            if (state.estudianteSeleccionado?.id === action.payload.id) {
+                state.estudianteSeleccionado = {
+                    ...state.estudianteSeleccionado,
+                    ...action.payload,
+                };
+            }
+        },
+
+        removerEstudianteDeLista: (state, action: PayloadAction<number>) => {
+            state.cargando = false;
+            state.estudiantes = state.estudiantes.filter((e) => e.id !== action.payload);
+            if (state.estudianteSeleccionado?.id === action.payload) {
+                state.estudianteSeleccionado = null;
+            }
+        },
     }
 })
 
@@ -42,4 +67,7 @@ export const {
     setEstudianteSeleccionado,
     setEstudiantes,
     setErrorEstudiantes,
+    agregarEstudiante,
+    actualizarEstudianteEnLista,
+    removerEstudianteDeLista,
 } = studentsSlice.actions
