@@ -8,14 +8,14 @@ class AcademicAdvisor:
 
         if materias_reprobadas >= 3:
             factores.append({
-                'factor': 'materias_reprobadas',
+                'factor': 'Asignaturas No Acreditadas',
                 'nivel': 'Crítico',
                 'impacto_porcentual': 40,
                 'diagnostico': f'Acumula {materias_reprobadas} materias reprobadas, lo que genera alto rezago curricular.'
             })
         elif materias_reprobadas in [1, 2]:
             factores.append({
-                'factor': 'materias_reprobadas',
+                'factor': 'Asignaturas No Acreditadas',
                 'nivel': 'Moderado',
                 'impacto_porcentual': 20,
                 'diagnostico': f'Registra {materias_reprobadas} materia(s) no acreditada(s).'
@@ -23,14 +23,14 @@ class AcademicAdvisor:
 
         if asistencia < 60.0:
             factores.append({
-                'factor': 'asistencia',
+                'factor': 'Asistencia Escolar',
                 'nivel': 'Crítico',
                 'impacto_porcentual': 35,
                 'diagnostico': f'Asistencia del {asistencia}% muy por debajo del mínimo institucional reglamentario (80%).'
             })
         elif asistencia < 80.0:
             factores.append({
-                'factor': 'asistencia',
+                'factor': 'Asistencia Escolar',
                 'nivel': 'Alerta',
                 'impacto_porcentual': 20,
                 'diagnostico': f'Asistencia del {asistencia}% en zona límite de derecho a examen ordinario.'
@@ -38,7 +38,7 @@ class AcademicAdvisor:
 
         if antecedentes == 1:
             factores.append({
-                'factor': 'antecedentes',
+                'factor': 'Historial y Antecedentes',
                 'nivel': 'Alerta',
                 'impacto_porcentual': 15,
                 'diagnostico': 'El alumno cuenta con antecedentes de bajo rendimiento o bajas temporales previas.'
@@ -46,7 +46,7 @@ class AcademicAdvisor:
 
         if promedio < 6.5:
             factores.append({
-                'factor': 'promedio',
+                'factor': 'Rendimiento Académico (Promedio)',
                 'nivel': 'Moderado',
                 'impacto_porcentual': 10,
                 'diagnostico': f'Promedio general de {promedio}, en riesgo de pérdida de regularidad académica.'
@@ -54,7 +54,7 @@ class AcademicAdvisor:
 
         if not factores:
             factores.append({
-                'factor': 'general',
+                'factor': 'Métricas Generales',
                 'nivel': 'Excelente',
                 'impacto_porcentual': 0,
                 'diagnostico': 'El alumno presenta métricas saludables de permanencia y buen desempeño.'

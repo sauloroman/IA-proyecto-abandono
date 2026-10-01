@@ -10,8 +10,10 @@ import type {
     RespuestaCargaMasiva,
 } from '../types';
 
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+
 const clienteApi = axios.create({
-    baseURL: `${import.meta.env.BACKEND_URL}/api`,
+    baseURL: `${backendUrl}/api`,
     headers: {
         'Content-Type': 'application/json',
     },
